@@ -1,6 +1,7 @@
 package perf.test.ribbon;
 
 import com.netflix.ribbon.ClientOptions;
+import com.netflix.ribbon.RibbonRequest;
 import com.netflix.ribbon.http.HttpResourceGroup;
 import com.netflix.ribbon.proxy.RibbonDynamicProxy;
 import io.netty.buffer.ByteBuf;
@@ -57,20 +58,20 @@ public class TestRouteBasic {
         long id = Long.parseLong(String.valueOf(_id.get(0)));
 
 
-        Observable<List<BackendResponse>> acd = getDataFromBackend(2, 50, 50, id)
+        Observable<List<BackendResponse>> acd = getDataFromBackend(0, 2, 50, 50, id)
                 .doOnError(Throwable::printStackTrace)
                         // Eclipse 20140224-0627 can't infer without this type hint even though the Java 8 compiler can
                 .<List<BackendResponse>>flatMap(responseA -> {
-                    Observable<BackendResponse> responseC = getDataFromBackend(1, 5000, 80, responseA.getResponseKey());
-                    Observable<BackendResponse> responseD = getDataFromBackend(1, 1000, 1, responseA.getResponseKey());
+                    Observable<BackendResponse> responseC = getDataFromBackend(2, 1, 5000, 80, responseA.getResponseKey());
+                    Observable<BackendResponse> responseD = getDataFromBackend(3, 1, 1000, 1, responseA.getResponseKey());
                     return Observable.zip(Observable.just(responseA), responseC, responseD,
                             Arrays::asList);
                 }).doOnError(Throwable::printStackTrace);
 
-        Observable<List<BackendResponse>> be = getDataFromBackend(25, 30, 150, id)
+        Observable<List<BackendResponse>> be = getDataFromBackend(1, 25, 30, 150, id)
                 // Eclipse 20140224-0627 can't infer without this type hint even though the Java 8 compiler can
                 .<List<BackendResponse>>flatMap(responseB -> {
-                    Observable<BackendResponse> responseE = getDataFromBackend(100, 30, 4, responseB.getResponseKey());
+                    Observable<BackendResponse> responseE = getDataFromBackend(4, 100, 30, 4, responseB.getResponseKey());
                     return Observable.zip(Observable.just(responseB), responseE, Arrays::asList);
                 }).doOnError(Throwable::printStackTrace);
 
@@ -124,8 +125,16 @@ public class TestRouteBasic {
         }
     }
 
-    private Observable<BackendResponse> getDataFromBackend(Integer numItems, Integer itemSize, Integer delay, Long id) {
-        return service.request(numItems, itemSize, delay, id).toObservable().flatMap(b -> {
+    private Observable<BackendResponse> getDataFromBackend(int idx, Integer numItems, Integer itemSize, Integer delay, Long id) {
+        RibbonRequest<ByteBuf> ribbonRequest;
+        try {
+            Object[] args = new Object[]{numItems, itemSize, delay, id};
+            ribbonRequest = (RibbonRequest<ByteBuf>) MockBackendService.class.getMethod("request" + idx, new Class[]{Integer.class, Integer.class, Integer.class, Long.class}).invoke(service, args);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        return ribbonRequest.toObservable().flatMap(b -> {
             try {
                 return Observable.just(BackendResponse.fromJson(jsonFactory, new ByteBufInputStream(b)));
             } catch (JsonParseException e) {

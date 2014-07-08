@@ -8,7 +8,6 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.reactivex.netty.RxNetty;
 import io.reactivex.netty.channel.SingleNioLoopProvider;
 import io.reactivex.netty.client.PoolExhaustedException;
-import io.reactivex.netty.protocol.http.client.HttpClient;
 import perf.test.utils.JsonParseException;
 import rx.Observable;
 
@@ -30,6 +29,7 @@ public final class StartServer {
             asProperty(1000), asProperty(Boolean.TRUE));
     private static TestRouteBasic route;
     private static TestRouteHello routeHello;
+    private static HystrixRoute routeHystrixStream;
 
     public static void main(String[] args) {
 
@@ -54,6 +54,7 @@ public final class StartServer {
 
         route = new TestRouteBasic(backendServerList);
         routeHello = new TestRouteHello();
+        routeHystrixStream = new HystrixRoute();
 
         SingleNioLoopProvider provider = new SingleNioLoopProvider(eventLoops);
         RxNetty.useEventLoopProvider(provider);
@@ -65,11 +66,15 @@ public final class StartServer {
                 if (request.getUri().startsWith("/testHello")) {
                     return routeHello.handle(request, response);
                 }
+                if (request.getUri().startsWith("/hystrix.stream")) {
+                    return routeHystrixStream.handle(request, response);
+                }
 
                 long startTime = System.currentTimeMillis();
                 counter.increment(CounterEvent.REQUESTS);
                 return route.handle(request, response)
                         .doOnCompleted(() -> {
+
                             counter.increment(CounterEvent.SUCCESS);
                             latency.addValue((int) (System.currentTimeMillis() - startTime));
                         })

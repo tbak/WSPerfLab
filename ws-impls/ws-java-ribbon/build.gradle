@@ -8,6 +8,7 @@ targetCompatibility = JavaVersion.VERSION_1_8
 
 dependencies {
     compile "com.netflix.ribbon:ribbon:${ribbon_version}"
+    compile "com.netflix.hystrix:hystrix-metrics-event-stream:${hystrix_version}"
     compile project(":ws-impls:ws-impl-utils")
     compile project(":ws-backend-mock")
 }
